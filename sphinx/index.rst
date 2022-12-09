@@ -10,6 +10,9 @@ Welcome to hoge's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   ./chap1
+   ./chap2
+   ./chap3
 
 
 
