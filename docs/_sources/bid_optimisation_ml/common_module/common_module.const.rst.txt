@@ -1,0 +1,7 @@
+common\_module.const module
+===========================
+
+.. automodule:: common_module.const
+   :members:
+   :undoc-members:
+   :show-inheritance:

@@ -1,0 +1,7 @@
+common\_module.aws\_util module
+===============================
+
+.. automodule:: common_module.aws_util
+   :members:
+   :undoc-members:
+   :show-inheritance:

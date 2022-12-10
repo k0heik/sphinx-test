@@ -1,0 +1,18 @@
+common\_module.custom\_logger package
+=====================================
+
+Submodules
+----------
+
+.. toctree::
+   :maxdepth: 4
+
+   common_module.custom_logger.custom_logger
+
+Module contents
+---------------
+
+.. automodule:: common_module.custom_logger
+   :members:
+   :undoc-members:
+   :show-inheritance:

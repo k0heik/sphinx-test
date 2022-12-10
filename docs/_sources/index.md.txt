@@ -1,16 +1,14 @@
 % contain the root `toctree` directive.
 
-# Welcome to hoge's documentation!
+# SophiaAI
 
 ```{toctree}
-:maxdepth: 2
+:maxdepth: 3
 :caption: Contents
 
-./chap1
-./chap2
-./chap3
-
-
+./specification/main
+./bid_optimisation_ml/modules
+./old/chap1
 ```
 
 <!-- ## Indices and tables -->
@@ -18,3 +16,4 @@
 <!-- * {ref}`genindex` -->
 <!-- * {ref}`modindex` -->
 <!-- * {ref}`search` -->
+

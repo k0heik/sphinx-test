@@ -1,0 +1,8 @@
+# bid_optimisation_ml
+
+```{toctree}
+:maxdepth: 4
+
+./sophia_ai/modules
+
+```

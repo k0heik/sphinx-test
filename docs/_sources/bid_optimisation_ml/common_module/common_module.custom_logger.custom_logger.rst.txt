@@ -1,0 +1,7 @@
+common\_module.custom\_logger.custom\_logger module
+===================================================
+
+.. automodule:: common_module.custom_logger.custom_logger
+   :members:
+   :undoc-members:
+   :show-inheritance:

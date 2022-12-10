@@ -1,0 +1,18 @@
+common\_module.tests package
+============================
+
+Submodules
+----------
+
+.. toctree::
+   :maxdepth: 4
+
+   common_module.tests.testutil
+
+Module contents
+---------------
+
+.. automodule:: common_module.tests
+   :members:
+   :undoc-members:
+   :show-inheritance:
