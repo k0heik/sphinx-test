@@ -1,0 +1,15 @@
+system_functions:
+  train:
+    type: Batch
+    suffix: TrainSPA
+    message_title_suffix: TrainSPA
+    ecr_prefix: spa
+    batch_name: train_spa_batch
+    batch_command: train
+    batch_attempt_duration_seconds: 7200
+    batch_enable_fail: true
+    compute_env_maxcpus: 128
+    compute_env_mincpus: 0
+    compute_env_disiredcpus: 0
+    job_def_vcpus: 16
+    job_def_memory: 49152

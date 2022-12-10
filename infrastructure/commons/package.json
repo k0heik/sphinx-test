@@ -1,0 +1,28 @@
+{
+  "name": "optimise-bidding-ml-commons",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "dependencies": {
+    "serverless": "2.28.6",
+    "serverless-prune-plugin": "2.0.1",
+    "serverless-pseudo-parameters": "2.5.0",
+    "serverless-step-functions": "~2.29.0",
+    "serverless-plugin-log-subscription": "~2.0.1",
+    "serverless-plugin-select-resource": "0.0.2"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/negocia-inc/bid_optimisation_ml.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/negocia-inc/bid_optimisation_ml/issues"
+  },
+  "homepage": "https://github.com/negocia-inc/bid_optimisation_ml#readme"
+}

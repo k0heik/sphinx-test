@@ -1,0 +1,28 @@
+system_functions:
+  default:
+    type: SimpleLambda
+    service_name: RecordToBq
+    service_name_snake_case: record_to_bq
+    memory_size: 4096
+    timeout: 900
+    environment:
+      DATASET_NAME:
+        staging: bid_optimisation_ml
+        preproduction: bid_optimisation_ml
+        production: bid_optimisation_ml
+      GCS_BUCKET:
+        staging: optimise-bidding-ml-staging
+        preproduction: optimise-bidding-ml-preproduction
+        production: optimise-bidding-ml-production
+      OUTPUT_CSV_BUCKET:
+        staging: optimise-bidding-ml-staging
+        preproduction: optimise-bidding-ml-preproduction
+        production: optimise-bidding-ml-production
+      OUTPUT_CSV_PREFIX:
+        staging: main/csv
+        preproduction: main/csv
+        production: main/csv
+      OUTPUT_STAGE:
+        staging: staging
+        preproduction: preproduction
+        production: production

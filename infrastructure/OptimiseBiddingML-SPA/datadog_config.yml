@@ -1,0 +1,8 @@
+service_name: OptimiseBiddingML
+subsystem_name: SPA
+monitor_settings:
+  train:
+    function_name: TrainSPA
+    aws_service_type: Batch
+    monitor_types:
+      - MemoryUtilization

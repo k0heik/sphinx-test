@@ -1,0 +1,122 @@
+[
+    {
+        "description": "抽出対象の日付",
+        "name": "data_date",
+        "type": "DATE",
+        "mode": "REQUIRED"
+    },
+    {
+        "description": "広告アカウントID",
+        "name": "advertising_account_id",
+        "type": "INT64",
+        "mode": "REQUIRED"
+    },
+    {
+        "description": "ポートフォリオID",
+        "name": "portfolio_id",
+        "type": "INT64",
+        "mode": "NULLABLE"
+    },
+    {
+        "description": "キャンペーンID",
+        "name": "campaign_id",
+        "type": "INT64",
+        "mode": "REQUIRED"
+    },
+    {
+        "description": "広告種別 keyword or product_targetings or targetings",
+        "name": "ad_type",
+        "type": "STRING",
+        "mode": "REQUIRED"
+    },
+    {
+        "description": "広告ID",
+        "name": "ad_id",
+        "type": "INT64",
+        "mode": "REQUIRED"
+    },
+    {
+        "description": "日予算",
+        "name": "daily_budget",
+        "type": "NUMERIC",
+        "mode": "REQUIRED"
+    },
+    {
+        "description": "最低日予算",
+        "name": "minimum_daily_budget",
+        "type": "NUMERIC",
+        "mode": "REQUIRED"
+    },
+    {
+        "description": "最高日予算",
+        "name": "maximum_daily_budget",
+        "type": "NUMERIC",
+        "mode": "NULLABLE"
+    },
+    {
+        "description": "日予算最適化の実施フラグ",
+        "name": "is_enabled_daily_budget_auto_adjustment",
+        "type": "BOOL",
+        "mode": "NULLABLE"
+    },
+    {
+        "description": "入札額最適化の実施フラグ",
+        "name": "is_enabled_bidding_auto_adjustment",
+        "type": "BOOL",
+        "mode": "NULLABLE"
+    },
+    {
+        "description": "最低入札額",
+        "name": "minimum_bidding_price",
+        "type": "NUMERIC",
+        "mode": "REQUIRED"
+    },
+    {
+        "description": "最高入札額",
+        "name": "maximum_bidding_price",
+        "type": "NUMERIC",
+        "mode": "NULLABLE"
+    },
+    {
+        "description": "実績データの日付",
+        "name": "date",
+        "type": "DATE",
+        "mode": "REQUIRED"
+    },
+    {
+        "description": "インプレッション数の実績値",
+        "name": "impressions",
+        "type": "INT64",
+        "mode": "REQUIRED"
+    },
+    {
+        "description": "クリック数の実績値",
+        "name": "clicks",
+        "type": "INT64",
+        "mode": "REQUIRED"
+    },
+    {
+        "description": "コンバージョン数の実績値",
+        "name": "conversions",
+        "type": "INT64",
+        "mode": "REQUIRED"
+    },
+    {
+        "description": "売り上げの実績値",
+        "name": "sales",
+        "type": "NUMERIC",
+        "mode": "REQUIRED"
+    },
+    {
+        "description": "広告費の実績値",
+        "name": "costs",
+        "type": "NUMERIC",
+        "mode": "REQUIRED"
+    },
+    {
+        "description": "入札額の実績値",
+        "name": "bidding_price",
+        "type": "NUMERIC",
+        "mode": "REQUIRED"
+    }
+]

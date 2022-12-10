@@ -1,0 +1,4 @@
+google-auth==1.33.1
+google-cloud-bigquery==2.6.2
+boto3==1.18.34
+pandas

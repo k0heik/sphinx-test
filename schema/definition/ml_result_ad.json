@@ -1,0 +1,44 @@
+[
+    {
+        "description": "広告アカウントID",
+        "name": "advertising_account_id",
+        "type": "INT64",
+        "mode": "REQUIRED"
+    },
+    {
+        "description": "ポートフォリオID",
+        "name": "portfolio_id",
+        "type": "INT64",
+        "mode": "NULLABLE"
+    },
+    {
+        "description": "キャンペーンID",
+        "name": "campaign_id",
+        "type": "INT64",
+        "mode": "REQUIRED"
+    },
+    {
+        "description": "広告タイプ",
+        "name": "ad_type",
+        "type": "STRING",
+        "mode": "REQUIRED"
+    },
+    {
+        "description": "広告ID",
+        "name": "ad_id",
+        "type": "INT64",
+        "mode": "REQUIRED"
+    },
+    {
+        "description": "処理日付",
+        "name": "date",
+        "type": "DATE",
+        "mode": "REQUIRED"
+    },
+    {
+        "description": "入札額",
+        "name": "bidding_price",
+        "type": "FLOAT64",
+        "mode": "NULLABLE"
+    }
+]

@@ -1,0 +1,309 @@
+service: OptimiseBiddingML-Main
+
+plugins:
+  - serverless-step-functions
+  - serverless-pseudo-parameters
+  - serverless-plugin-log-subscription
+  - serverless-prune-plugin
+
+provider:
+  name: aws
+  runtime: python3.8
+  region: ap-northeast-1
+  stage: ${opt:stage, 'Staging'}
+  deploymentBucket:
+    name: sophiaai-serverless-deploy
+  logRetentionInDays: null
+
+# stop building when serverless.yml is config error
+configValidationMode: error
+
+package:
+  exclude:
+    - node_modules/**
+
+custom:
+  prune:
+    automatic: true
+    number: 3
+  Staging:
+    bucket: optimise-bidding-ml-staging
+    dataset_name: bid_optimisation_ml
+    commerce_flow_dataset_name: commerce_flow
+    gcp_project_id: sophiaai-staging
+    gcs_bucket: optimise-bidding-ml-staging
+    slack_channel: 10_sophia_ai_event_notification_dev
+    slack_channel_failed: 10_sophia_ai_error_notification_dev
+    sns_arn: arn:aws:sns:ap-northeast-1:781667190002:StagingOptimiseBiddingML
+    ssm_gcp_key_parameter_name: /SOPHIAAI/DWH/GCP/ACCESS_KEY/STAGING
+    ssm_target_unit_parameter_name: /SOPHIAAI/BID_OPTIMISATION_ML_TARGET_UNITS/STAGING
+    target_unit_datasource: BQ
+    output_stage: staging
+    output_json_bucket: optimise-bidding-ml-output-staging
+    output_csv_bucket: optimise-bidding-ml-staging
+    states_role_arn: arn:aws:iam::781667190002:role/StagingOptimiseBiddingMLStepFunctions
+    tz: Asia/Tokyo
+    log_subscription: true
+    log_retention_in_days: 7
+    rerunnable: yes
+    # JST AM 7:00
+    schedule_rate: cron(0 22 * * ? *)
+  PreProduction:
+    bucket: optimise-bidding-ml-preproduction
+    dataset_name: bid_optimisation_ml
+    commerce_flow_dataset_name: commerce_flow
+    gcp_project_id: sophiaai-preproduction
+    gcs_bucket: optimise-bidding-ml-preproduction
+    slack_channel: 10_sophia_ai_event_notification_dev
+    slack_channel_failed: 10_sophia_ai_error_notification_dev
+    sns_arn: arn:aws:sns:ap-northeast-1:781667190002:StagingOptimiseBiddingML
+    ssm_gcp_key_parameter_name: /SOPHIAAI/DWH/GCP/ACCESS_KEY/PREPRODUCTION
+    ssm_target_unit_parameter_name: /SOPHIAAI/BID_OPTIMISATION_ML_TARGET_UNITS/PREPRODUCTION
+    target_unit_datasource: BQ
+    output_stage: preproduction
+    output_json_bucket: optimise-bidding-ml-output-preproduction
+    output_csv_bucket: optimise-bidding-ml-preproduction
+    states_role_arn: arn:aws:iam::781667190002:role/StagingOptimiseBiddingMLStepFunctions
+    tz: Asia/Tokyo
+    log_subscription: true
+    log_retention_in_days: 7
+    rerunnable: yes
+    # JST AM 8:30
+    schedule_rate: cron(30 23 * * ? *)
+  Production:
+    bucket: optimise-bidding-ml-production
+    dataset_name: bid_optimisation_ml
+    commerce_flow_dataset_name: commerce_flow
+    gcp_project_id: sophiaai-production
+    gcs_bucket: optimise-bidding-ml-production
+    slack_channel: 10_sophia_ai_event_notification
+    slack_channel_failed: 10_sophia_ai_error_notification
+    sns_arn: arn:aws:sns:ap-northeast-1:781667190002:ProductionOptimiseBiddingML
+    ssm_gcp_key_parameter_name: /SOPHIAAI/DWH/GCP/ACCESS_KEY/PRODUCTION
+    ssm_target_unit_parameter_name: /SOPHIAAI/BID_OPTIMISATION_ML_TARGET_UNITS/PRODUCTION
+    target_unit_datasource: CSV
+    output_stage: production
+    output_json_bucket: optimise-bidding-ml-output-production
+    output_csv_bucket: optimise-bidding-ml-production
+    states_role_arn: arn:aws:iam::781667190002:role/ProductionOptimiseBiddingMLStepFunctions
+    tz: Asia/Tokyo
+    log_subscription: true
+    log_retention_in_days: null
+    rerunnable: no
+    # JST AM 7:00
+    schedule_rate: cron(0 22 * * ? *)
+  logSubscription:
+    - destinationArn: arn:aws:lambda:ap-northeast-1:781667190002:function:${self:provider.stage}OptimiseBiddingMLMem2CW
+      filterPattern: Memory Size
+    - destinationArn: arn:aws:firehose:ap-northeast-1:781667190002:deliverystream/DatadogCWLogsforwarder
+      roleArn: arn:aws:iam::781667190002:role/CWLtoKinesisRole
+
+functions:
+  Main:
+    name: ${self:provider.stage}${self:service}-MainLambda
+    image:
+      uri: 781667190002.dkr.ecr.ap-northeast-1.amazonaws.com/negocia/optimise-bidding-ml@${opt:digest}
+      command:
+        - lambda_handler.lambda_handler
+      entryPoint:
+        - '/lambda-entrypoint.sh'
+    memorySize: 4096
+    timeout: 900
+    environment:
+      TZ: ${self:custom.${self:provider.stage}.tz}
+      BUCKET: ${self:custom.${self:provider.stage}.bucket}
+      DATASET_NAME: ${self:custom.${self:provider.stage}.dataset_name}
+      COMMERCE_FLOW_DATASET_NAME: ${self:custom.${self:provider.stage}.commerce_flow_dataset_name}
+      GCP_PROJECT_ID: ${self:custom.${self:provider.stage}.gcp_project_id}
+      GCS_BUCKET: ${self:custom.${self:provider.stage}.gcs_bucket}
+      SSM_GCP_KEY_PARAMETER_NAME: ${self:custom.${self:provider.stage}.ssm_gcp_key_parameter_name}
+      SSM_TARGET_UNIT_PARAMETER_NAME: ${self:custom.${self:provider.stage}.ssm_target_unit_parameter_name}
+      OUTPUT_STAGE: ${self:custom.${self:provider.stage}.output_stage}
+      OUTPUT_JSON_BUCKET: ${self:custom.${self:provider.stage}.output_json_bucket}
+      OUTPUT_JSON_PREFIX: ""
+      OUTPUT_CSV_BUCKET: ${self:custom.${self:provider.stage}.output_csv_bucket}
+      OUTPUT_CSV_PREFIX: main/csv
+      RERUNNABLE: ${self:custom.${self:provider.stage}.rerunnable}
+    role: arn:aws:iam::781667190002:role/${self:provider.stage}OptimiseBiddingMLLambdaRole
+    logSubscription: ${self:custom.${self:provider.stage}.log_subscription}
+  MainGetUnits:
+    name: ${self:provider.stage}${self:service}-GetUnitsLambda
+    image:
+      uri: 781667190002.dkr.ecr.ap-northeast-1.amazonaws.com/negocia/optimise-bidding-ml@${opt:digest}
+      command:
+        - get_units_lambda.lambda_handler
+      entryPoint:
+        - '/lambda-entrypoint.sh'
+    memorySize: 384
+    timeout: 90
+    environment:
+      TZ: ${self:custom.${self:provider.stage}.tz}
+      BUCKET: ${self:custom.${self:provider.stage}.bucket}
+      DATASET_NAME: ${self:custom.${self:provider.stage}.dataset_name}
+      COMMERCE_FLOW_DATASET_NAME: ${self:custom.${self:provider.stage}.commerce_flow_dataset_name}
+      GCP_PROJECT_ID: ${self:custom.${self:provider.stage}.gcp_project_id}
+      GCS_BUCKET: ${self:custom.${self:provider.stage}.gcs_bucket}
+      SSM_GCP_KEY_PARAMETER_NAME: ${self:custom.${self:provider.stage}.ssm_gcp_key_parameter_name}
+      SSM_TARGET_UNIT_PARAMETER_NAME: ${self:custom.${self:provider.stage}.ssm_target_unit_parameter_name}
+      TARGET_UNIT_DATASOURCE: ${self:custom.${self:provider.stage}.target_unit_datasource}
+
+    role: arn:aws:iam::781667190002:role/${self:provider.stage}OptimiseBiddingMLLambdaRole
+    logSubscription: ${self:custom.${self:provider.stage}.log_subscription}
+
+resources:
+  Resources:
+    MainLogGroup:
+      Type: AWS::Logs::LogGroup
+      Properties:
+        RetentionInDays: ${self:custom.${self:provider.stage}.log_retention_in_days}
+    MainGetUnitsLogGroup:
+      Type: AWS::Logs::LogGroup
+      Properties:
+        RetentionInDays: ${self:custom.${self:provider.stage}.log_retention_in_days}
+    DailyInvokeScheduleRole:
+      Type: AWS::IAM::Role
+      Properties:
+        Path: /service-role/
+        RoleName: ${self:provider.stage}${self:service}-DailyInvokeScheduleRole
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: events.amazonaws.com
+              Action: sts:AssumeRole
+        MaxSessionDuration: 3600
+        Policies:
+          - PolicyName: InvokeStepFunctions
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - states:StartExecution
+                  Resource:
+                    - arn:aws:states:#{AWS::Region}:#{AWS::AccountId}:stateMachine:${self:provider.stage}${self:service}
+    DailyInvokeSchedule:
+      Type: AWS::Events::Rule
+      Properties:
+        Name: ${self:provider.stage}${self:service}-DailyInvokeSchedule
+        Description: BidOptimisationML-Main Daily Invoke Schedule
+        ScheduleExpression: ${self:custom.${self:provider.stage}.schedule_rate}
+        State: ENABLED
+        EventBusName: default
+        Targets:
+          - Id: ${self:provider.stage}${self:service}-DailyInvokeSchedule
+            Arn: arn:aws:states:#{AWS::Region}:#{AWS::AccountId}:stateMachine:${self:provider.stage}${self:service}
+            RoleArn: arn:aws:iam::#{AWS::AccountId}:role/service-role/${self:provider.stage}${self:service}-DailyInvokeScheduleRole
+            Input: "{\"date\":\"latest\"}"
+
+stepFunctions:
+  stateMachines:
+    StateMachine1:
+      name: ${self:provider.stage}${self:service}
+      role: ${self:custom.${self:provider.stage}.states_role_arn}
+      definition:
+        StartAt: send_SNS_start
+        States:
+          send_SNS_start:
+            Type: Task
+            Resource: "arn:aws:states:::sns:publish"
+            ResultPath: "$.sns_start"
+            Parameters:
+              Message:
+                title: "[Stepfunctions][${self:provider.stage}]入札額調整ML:Main"
+                slack-channel: ${self:custom.${self:provider.stage}.slack_channel}
+                detail:
+                  build-status: "Started"
+              TopicArn: ${self:custom.${self:provider.stage}.sns_arn}
+            Next: get_units
+          get_units:
+            Type: Task
+            Next: main
+            Retry:
+              - ErrorEquals:
+                - States.ALL
+                IntervalSeconds: 3
+                MaxAttempts: 3
+            Resource:
+              Fn::GetAtt: [MainGetUnits, Arn]
+            Parameters:
+              date.$: "$.date"
+            ResultPath: "$.get_units"
+            Catch:
+              - ErrorEquals: ["States.ALL"]
+                Next: send_SNS_fail
+          main:
+            Type: Map
+            Next: invoke_record_to_bq
+            ItemsPath: "$.get_units"
+            ResultPath: "$.main"
+            Iterator:
+              StartAt: MainUnit
+              States:
+                MainUnit:
+                  InputPath: "$"
+                  ResultPath: "$.main_unit"
+                  Type: Task
+                  Resource:
+                    Fn::GetAtt: [Main, Arn]
+                  Retry:
+                    - ErrorEquals:
+                      - States.ALL
+                      IntervalSeconds: 3
+                      MaxAttempts: 3
+                  Parameters:
+                    date.$: "$.date"
+                    advertising_account_id.$: "$.advertising_account_id"
+                    portfolio_id.$: "$.portfolio_id"
+                  End: True
+                  Catch:
+                    - ErrorEquals: ["States.ALL"]
+                      Next: send_SNS_error
+                send_SNS_error:
+                  Type: Task
+                  Resource: "arn:aws:states:::sns:publish"
+                  Parameters:
+                    Message:
+                      title: "[Stepfunctions][${self:provider.stage}]入札額調整ML:Main"
+                      slack-channel: ${self:custom.${self:provider.stage}.slack_channel_failed}
+                      detail:
+                        build-status: "Failed"
+                        error.$: "$.Error"
+                        cause.$: "$.Cause"
+                    TopicArn: ${self:custom.${self:provider.stage}.sns_arn}
+                  End: True
+          invoke_record_to_bq:
+            Type: Task
+            Resource: arn:aws:states:::states:startExecution
+            Next: send_SNS_end
+            Parameters:
+              StateMachineArn: arn:aws:states:ap-northeast-1:781667190002:stateMachine:${self:provider.stage}OptimiseBiddingML-RecordToBq
+              Input:
+                date.$: "$.date"
+          send_SNS_end:
+            Type: Task
+            Resource: "arn:aws:states:::sns:publish"
+            Parameters:
+              Message:
+                title: "[Stepfunctions][${self:provider.stage}]入札額調整ML:Main"
+                slack-channel: ${self:custom.${self:provider.stage}.slack_channel}
+                detail:
+                  build-status: "Succeeded"
+              TopicArn: ${self:custom.${self:provider.stage}.sns_arn}
+            End: true
+          send_SNS_fail:
+            Type: Task
+            Resource: "arn:aws:states:::sns:publish"
+            Parameters:
+              Message:
+                title: "[Stepfunctions][${self:provider.stage}]入札額調整ML:Main"
+                slack-channel: ${self:custom.${self:provider.stage}.slack_channel_failed}
+                detail:
+                  build-status: "Failed"
+                  error.$: "$.Error"
+                  cause.$: "$.Cause"
+              TopicArn: ${self:custom.${self:provider.stage}.sns_arn}
+            Next: end_fail
+          end_fail:
+            Type: Fail

@@ -1,0 +1,231 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: OptmiseBiddingML CodePipline
+Parameters:
+  EnvType:
+    Description: Environment type.
+    Type: String
+    AllowedValues:
+      - PreProduction
+      - Staging
+      - Production
+  SlackWorkSpace:
+    Description: SlackWorkSpaceID
+    Type: String
+    Default: T3SCBQLG3
+  SlackChannel:
+    Description: SlackChannelID 10_sophia_ai_activity
+    Type: String
+    Default: CU5FG7SHM
+  DebugName:
+    Description: DebugName
+    Type: String
+    Default: ""
+  DebugBranch:
+    Description: DebugBranch
+    Type: String
+    Default: ""
+Mappings:
+  EnvSettings:
+    TargetBranch:
+      PreProduction: develop
+      Staging: staging
+      Production: main
+    InfoChatbotArn:
+      PreProduction: arn:aws:chatbot::781667190002:chat-configuration/slack-channel/SophiaAIChatbotInfo
+      Staging: arn:aws:chatbot::781667190002:chat-configuration/slack-channel/SophiaAIChatbotInfo
+      Production: arn:aws:chatbot::781667190002:chat-configuration/slack-channel/SophiaAIChatbotInfo
+    ErrorChatbotArn:
+      PreProduction: arn:aws:chatbot::781667190002:chat-configuration/slack-channel/SophiaAIChatbotErrorDev
+      Staging: arn:aws:chatbot::781667190002:chat-configuration/slack-channel/SophiaAIChatbotErrorDev
+      Production: arn:aws:chatbot::781667190002:chat-configuration/slack-channel/SophiaAIChatbotError
+Conditions:
+  UseDebugBranch: !Not [!Equals [!Ref DebugBranch, ""]]
+  ReTrain: !Equals [ !Ref EnvType, "Production" ]
+Resources:
+  PipelineNotificationRuleInfo:
+    Type: AWS::CodeStarNotifications::NotificationRule
+    Properties:
+      Name: !Sub ${DebugName}${EnvType}OptimiseBiddingMLPipelineRuleInfo
+      DetailType: FULL
+      Resource: !Join [ '', [ 'arn:aws:codepipeline:', !Ref 'AWS::Region', ':', !Ref 'AWS::AccountId', ':', !Ref BuildPipeline ] ]
+      EventTypeIds:
+        - codepipeline-pipeline-pipeline-execution-failed
+        - codepipeline-pipeline-pipeline-execution-canceled
+        - codepipeline-pipeline-pipeline-execution-started
+        - codepipeline-pipeline-pipeline-execution-succeeded
+      Targets:
+        - TargetType: AWSChatbotSlack
+          TargetAddress: !FindInMap [EnvSettings, InfoChatbotArn, !Ref EnvType]
+  PipelineNotificationRuleError:
+    Type: AWS::CodeStarNotifications::NotificationRule
+    Properties:
+      Name: !Sub ${DebugName}${EnvType}OptimiseBiddingMLPipelineRuleError
+      DetailType: FULL
+      Resource: !Sub arn:aws:codepipeline:ap-northeast-1:${AWS::AccountId}:${DebugName}${EnvType}OptimiseBiddingML
+      EventTypeIds:
+        - codepipeline-pipeline-pipeline-execution-failed
+      Targets:
+        - TargetType: AWSChatbotSlack
+          TargetAddress: !FindInMap [EnvSettings, ErrorChatbotArn, !Ref EnvType]
+  BuildPipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      RoleArn: !Sub arn:aws:iam::${AWS::AccountId}:role/service-role/OptimiseBiddingMLCodePipeline
+      Name: !Sub ${DebugName}${EnvType}OptimiseBiddingML
+      ArtifactStore:
+        Type: S3
+        Location: codepipeline-ap-northeast-1-445985188528
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: Source
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: CodeStarSourceConnection
+                Version: "1"
+              RunOrder: 1
+              Configuration:
+                BranchName: !If
+                  - UseDebugBranch
+                  - !Ref DebugBranch
+                  - !FindInMap [EnvSettings, TargetBranch, !Ref EnvType]
+                ConnectionArn: !Sub arn:aws:codestar-connections:us-east-2:${AWS::AccountId}:connection/a8b15010-8973-42f5-b1c7-24e472982580
+                FullRepositoryId: negocia-inc/bid_optimisation_ml
+                OutputArtifactFormat: CODE_ZIP
+              OutputArtifacts:
+                - Name: SourceArtifact
+              InputArtifacts: []
+              Region: ap-northeast-1
+              Namespace: SourceVariables
+        - Name: BuildCommon
+          Actions:
+            - Name: CloudFormation
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: "1"
+              RunOrder: 1
+              Configuration:
+                ProjectName: !Sub ${EnvType}OptimiseBiddingMLCommon-CloudFormation
+              OutputArtifacts: []
+              InputArtifacts:
+                - Name: SourceArtifact
+              Region: ap-northeast-1
+            - Name: SlackNotification
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: "1"
+              RunOrder: 1
+              Configuration:
+                ProjectName: !Sub ${EnvType}OptimiseBiddingMLCommon-SlackNotification
+              OutputArtifacts: []
+              InputArtifacts:
+                - Name: SourceArtifact
+              Region: ap-northeast-1
+        - Name: BuildSubSystems
+          Actions:
+            - Name: CPC
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: "1"
+              RunOrder: 1
+              Configuration:
+                BatchEnabled: "false"
+                ProjectName: !Sub ${EnvType}OptimiseBiddingML-CPC
+              OutputArtifacts: []
+              InputArtifacts:
+                - Name: SourceArtifact
+              Region: ap-northeast-1
+            - Name: CVR
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: "1"
+              RunOrder: 1
+              Configuration:
+                ProjectName: !Sub ${EnvType}OptimiseBiddingML-CVR
+              OutputArtifacts: []
+              InputArtifacts:
+                - Name: SourceArtifact
+              Region: ap-northeast-1
+            - Name: SPA
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: "1"
+              RunOrder: 1
+              Configuration:
+                ProjectName: !Sub ${EnvType}OptimiseBiddingML-SPA
+              OutputArtifacts: []
+              InputArtifacts:
+                - Name: SourceArtifact
+              Region: ap-northeast-1
+            - Name: Main
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: "1"
+              RunOrder: 1
+              Configuration:
+                ProjectName: !Sub ${EnvType}OptimiseBiddingML-Main
+              OutputArtifacts: []
+              InputArtifacts:
+                - Name: SourceArtifact
+              Region: ap-northeast-1
+            - Name: RecordToBq
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: "1"
+              RunOrder: 1
+              Configuration:
+                ProjectName: !Sub ${EnvType}OptimiseBiddingML-RecordToBq
+              OutputArtifacts: []
+              InputArtifacts:
+                - Name: SourceArtifact
+              Region: ap-northeast-1
+        - Name: BuildPipeline
+          Actions:
+            - Name: TrainPipeline
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: "1"
+              RunOrder: 1
+              Configuration:
+                ProjectName: !Sub ${EnvType}OptimiseBiddingML-TrainPipeline
+              OutputArtifacts: []
+              InputArtifacts:
+                - Name: SourceArtifact
+              Region: ap-northeast-1
+        - !If
+          - ReTrain
+          - Name: InvokeStepFunctions
+            Actions:
+              - Name: InvokeTrainPipeline
+                ActionTypeId:
+                  Category: Invoke
+                  Owner: AWS
+                  Provider: StepFunctions
+                  Version: "1"
+                RunOrder: 1
+                Configuration:
+                  Input: '{ "batch": { "parameters": { "date": "latest" } } }'
+                  InputType: Literal
+                  StateMachineArn: !Sub arn:aws:states:ap-northeast-1:${AWS::AccountId}:stateMachine:${EnvType}OptimiseBiddingML-TrainPipeline
+                OutputArtifacts: []
+                InputArtifacts:
+                  - Name: SourceArtifact
+                Region: ap-northeast-1
+          - !Ref AWS::NoValue

@@ -1,0 +1,86 @@
+[
+    {
+        "description": "抽出対象の日付",
+        "name": "data_date",
+        "type": "DATE",
+        "mode": "REQUIRED"
+    },
+    {
+        "description": "広告アカウントID",
+        "name": "advertising_account_id",
+        "type": "INT64",
+        "mode": "REQUIRED"
+    },
+    {
+        "description": "ポートフォリオID",
+        "name": "portfolio_id",
+        "type": "INT64",
+        "mode": "NULLABLE"
+    },
+    {
+        "description": "最大化したい指標（sales, conversion, click)",
+        "name": "purpose",
+        "type": "STRING",
+        "mode": "REQUIRED"
+    },
+    {
+        "description": "目標広告費　mode = ‘cost’の場合必須",
+        "name": "target_cost",
+        "type": "NUMERIC",
+        "mode": "NULLABLE"
+    },
+    {
+        "description": "プロモーション種別 month or range",
+        "name": "type",
+        "type": "STRING",
+        "mode": "REQUIRED"
+    },
+    {
+        "description": "プロモーションモード budget or goal or cost",
+        "name": "mode",
+        "type": "STRING",
+        "mode": "REQUIRED"
+    },
+    {
+        "description": "プロモーション開始日",
+        "name": "start",
+        "type": "DATE",
+        "mode": "REQUIRED"
+    },
+    {
+        "description": "プロモーション終了日",
+        "name": "end",
+        "type": "DATE",
+        "mode": "REQUIRED"
+    },
+    {
+        "description": "総額予算 mode = ‘budget’の場合必須",
+        "name": "total_budget",
+        "type": "INT64",
+        "mode": "NULLABLE"
+    },
+    {
+        "description": "目標値 mode = ‘goal’の場合必須",
+        "name": "target_value",
+        "type": "FLOAT64",
+        "mode": "NULLABLE"
+    },
+    {
+        "description": "残日数 1以上の整数値",
+        "name": "remaining_days",
+        "type": "INT64",
+        "mode": "REQUIRED"
+    },
+    {
+        "description": "変更日付 （最初の変更の際にはNULLが入る）",
+        "name": "change_date",
+        "type": "DATE",
+        "mode": "NULLABLE"
+    },
+    {
+        "description": "入札額を小数点第何位で切り上げるかの設定",
+        "name": "round_up_point",
+        "type": "INT64",
+        "mode": "NULLABLE"
+    }
+]

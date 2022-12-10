@@ -1,0 +1,161 @@
+service: OptimiseBiddingML-{{ service_name }}
+
+plugins:
+  - serverless-step-functions
+  - serverless-pseudo-parameters
+  - serverless-plugin-log-subscription
+  - serverless-prune-plugin
+
+provider:
+  name: aws
+  runtime: python3.8
+  region: ap-northeast-1
+  stage: ${opt:stage, 'Staging'}
+  deploymentBucket:
+    name: sophiaai-serverless-deploy
+  logRetentionInDays: null
+
+# stop building when serverless.yml is config error
+configValidationMode: error
+
+package:
+  exclude:
+    - node_modules/**
+
+custom:
+  prune:
+    automatic: true
+    number: 3
+  Staging:
+    gcp_project_id: sophiaai-staging
+    ssm_gcp_key_parameter_name: /SOPHIAAI/DWH/GCP/ACCESS_KEY/STAGING
+  {% for name, var in environment.items() %}
+    {{ name }}: {{ var["staging"] }}
+  {% endfor %}
+    slack_channel: 10_sophia_ai_event_notification_dev
+    slack_channel_failed: 10_sophia_ai_error_notification_dev
+    sns_arn: arn:aws:sns:ap-northeast-1:781667190002:StagingOptimiseBiddingML
+    states_role_arn: arn:aws:iam::781667190002:role/StagingOptimiseBiddingMLStepFunctions
+    tz: Asia/Tokyo
+    log_subscription: true
+    log_retention_in_days: 7
+  PreProduction:
+    gcp_project_id: sophiaai-preproduction
+    ssm_gcp_key_parameter_name: /SOPHIAAI/DWH/GCP/ACCESS_KEY/PREPRODUCTION
+  {% for name, var in environment.items() %}
+    {{ name }}: {{ var["preproduction"] }}
+  {% endfor %}
+    slack_channel: 10_sophia_ai_event_notification_dev
+    slack_channel_failed: 10_sophia_ai_error_notification_dev
+    sns_arn: arn:aws:sns:ap-northeast-1:781667190002:StagingOptimiseBiddingML
+    states_role_arn: arn:aws:iam::781667190002:role/StagingOptimiseBiddingMLStepFunctions
+    tz: Asia/Tokyo
+    log_subscription: false
+    log_retention_in_days: 7
+  Production:
+    gcp_project_id: sophiaai-production
+    ssm_gcp_key_parameter_name: /SOPHIAAI/DWH/GCP/ACCESS_KEY/PRODUCTION
+  {% for name, var in environment.items() %}
+    {{ name }}: {{ var["production"] }}
+  {% endfor %}
+    slack_channel: 10_sophia_ai_event_notification
+    slack_channel_failed: 10_sophia_ai_error_notification
+    sns_arn: arn:aws:sns:ap-northeast-1:781667190002:ProductionOptimiseBiddingML
+    states_role_arn: arn:aws:iam::781667190002:role/ProductionOptimiseBiddingMLStepFunctions
+    tz: Asia/Tokyo
+    log_subscription: true
+    log_retention_in_days: null
+  logSubscription:
+    - destinationArn: arn:aws:lambda:ap-northeast-1:781667190002:function:${self:provider.stage}OptimiseBiddingMLMem2CW
+      filterPattern: Memory Size
+    {% if rawlog_to_datadog %}
+    - destinationArn: arn:aws:firehose:ap-northeast-1:781667190002:deliverystream/DatadogCWLogsforwarder
+      roleArn: arn:aws:iam::781667190002:role/CWLtoKinesisRole
+    {% endif %}
+
+functions:
+  {{ service_name }}:
+    name: ${self:provider.stage}${self:service}
+    image: 781667190002.dkr.ecr.ap-northeast-1.amazonaws.com/negocia/optimise-bidding-ml@${opt:digest}
+    memorySize: {{ memory_size }}
+    timeout: {{ timeout }}
+    environment:
+      SSM_GCP_KEY_PARAMETER_NAME: ${self:custom.${self:provider.stage}.ssm_gcp_key_parameter_name}
+      GCP_PROJECT_ID: ${self:custom.${self:provider.stage}.gcp_project_id}
+    {% for name in environment.keys() %}
+      {{ name }}: ${self:custom.${self:provider.stage}.{{ name }}}
+    {% endfor %}
+      TZ: ${self:custom.${self:provider.stage}.tz}
+    role: arn:aws:iam::781667190002:role/${self:provider.stage}OptimiseBiddingMLLambdaRole
+    logSubscription: ${self:custom.${self:provider.stage}.log_subscription}
+
+resources:
+  Resources:
+    {{ service_name }}LogGroup:
+      Type: AWS::Logs::LogGroup
+      Properties:
+        RetentionInDays: ${self:custom.${self:provider.stage}.log_retention_in_days}
+
+stepFunctions:
+  stateMachines:
+    StateMachine1:
+      name: ${self:provider.stage}${self:service}
+      role: ${self:custom.${self:provider.stage}.states_role_arn}
+      definition:
+        StartAt: send_SNS_start
+        States:
+          send_SNS_start:
+            Type: Task
+            Resource: "arn:aws:states:::sns:publish"
+            ResultPath: "$.sns_start"
+            Parameters:
+              Message:
+                title: "[Stepfunctions][${self:provider.stage}]入札額調整ML:{{ service_name }}"
+                slack-channel: ${self:custom.${self:provider.stage}.slack_channel}
+                detail:
+                  build-status: "Started"
+              TopicArn: ${self:custom.${self:provider.stage}.sns_arn}
+            Next: {{ service_name_snake_case }}
+          {{ service_name_snake_case }}:
+            Type: Task
+            Next: send_SNS_end
+            Retry:
+              - ErrorEquals:
+                - States.ALL
+                IntervalSeconds: 3
+                MaxAttempts: 3
+            Resource:
+              Fn::GetAtt: [{{ service_name }}, Arn]
+            Parameters:
+              date.$: "$.date"
+            InputPath: "$"
+            ResultPath: "$.{{ service_name_snake_case }}"
+            Catch:
+              - ErrorEquals: ["States.ALL"]
+                Next: send_SNS_fail
+          send_SNS_end:
+            Type: Task
+            Resource: "arn:aws:states:::sns:publish"
+            Parameters:
+              Message:
+                title: "[Stepfunctions][${self:provider.stage}]入札額調整ML:{{ service_name }}"
+                slack-channel: ${self:custom.${self:provider.stage}.slack_channel}
+                detail:
+                  build-status: "Succeeded"
+              TopicArn: ${self:custom.${self:provider.stage}.sns_arn}
+            End: true
+          send_SNS_fail:
+            Type: Task
+            Resource: "arn:aws:states:::sns:publish"
+            Parameters:
+              Message:
+                title: "[Stepfunctions][${self:provider.stage}]入札額調整ML:{{ service_name }}"
+                slack-channel: ${self:custom.${self:provider.stage}.slack_channel_failed}
+                detail:
+                  build-status: "Failed"
+                  error.$: "$.Error"
+                  cause.$: "$.Cause"
+              TopicArn: ${self:custom.${self:provider.stage}.sns_arn}
+            Next: end_fail
+          end_fail:
+            Type: Fail

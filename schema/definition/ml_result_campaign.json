@@ -1,0 +1,38 @@
+[
+    {
+        "description": "広告アカウントID",
+        "name": "advertising_account_id",
+        "type": "INT64",
+        "mode": "REQUIRED"
+    },
+    {
+        "description": "ポートフォリオID",
+        "name": "portfolio_id",
+        "type": "INT64",
+        "mode": "NULLABLE"
+    },
+    {
+        "description": "キャンペーンID",
+        "name": "campaign_id",
+        "type": "INT64",
+        "mode": "REQUIRED"
+    },
+    {
+        "description": "処理日付",
+        "name": "date",
+        "type": "DATE",
+        "mode": "REQUIRED"
+    },
+    {
+        "description": "日予算",
+        "name": "cap_daily_budget",
+        "type": "FLOAT64",
+        "mode": "NULLABLE"
+    },
+    {
+        "description": "日予算計算に使ったweight",
+        "name": "cap_daily_budget_weight",
+        "type": "FLOAT64",
+        "mode": "NULLABLE"
+    }
+]

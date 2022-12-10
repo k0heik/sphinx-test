@@ -1,0 +1,8 @@
+service_name: OptimiseBiddingML
+subsystem_name: CVR
+monitor_settings:
+  train:
+    function_name: TrainCVR
+    aws_service_type: Batch
+    monitor_types:
+      - MemoryUtilization

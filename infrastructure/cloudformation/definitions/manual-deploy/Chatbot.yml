@@ -1,0 +1,66 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: OptmiseBiddingML CodePipline
+Parameters:
+  EnvType:
+    Description: Environment type.
+    Type: String
+    AllowedValues:
+      - Production
+  DebugName:
+    Description: DebugName
+    Type: String
+    Default: ""
+  SlackWorkSpace:
+    Description: SlackWorkSpaceID
+    Type: String
+    Default: T3SCBQLG3
+  SlackChannel:
+    Description: SlackChannelID 10_sophia_ai_activity
+    Type: String
+    Default: CU5FG7SHM
+  SlackChannelError:
+    Description: SlackChannelID 10_sophia_ai_error_notification
+    Type: String
+    Default: C014S6Q077B
+  SlackChannelErrorDev:
+    Description: SlackChannelID 10_sophia_ai_error_notification_dev
+    Type: String
+    Default: C019YCUG0RW
+Resources:
+  ChatbotRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: SophiaAIChatbotRole
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          -
+            Effect: Allow
+            Principal:
+              Service:
+                - chatbot.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchReadOnlyAccess
+  ChatbotInfo:
+    Type: AWS::Chatbot::SlackChannelConfiguration
+    Properties: 
+      ConfigurationName: SophiaAIChatbotInfo
+      IamRoleArn: !GetAtt ChatbotRole.Arn
+      SlackChannelId: !Sub ${SlackChannel}
+      SlackWorkspaceId: !Sub ${SlackWorkSpace}
+  ChatbotError:
+    Type: AWS::Chatbot::SlackChannelConfiguration
+    Properties: 
+      ConfigurationName: SophiaAIChatbotError
+      IamRoleArn: !GetAtt ChatbotRole.Arn
+      SlackChannelId: !Sub ${SlackChannelError}
+      SlackWorkspaceId: !Sub ${SlackWorkSpace}
+  ChatbotErrorDev:
+    Type: AWS::Chatbot::SlackChannelConfiguration
+    Properties: 
+      ConfigurationName: SophiaAIChatbotErrorDev
+      IamRoleArn: !GetAtt ChatbotRole.Arn
+      SlackChannelId: !Sub ${SlackChannelErrorDev}
+      SlackWorkspaceId: !Sub ${SlackWorkSpace}

@@ -1,0 +1,158 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: OptmiseBiddingML RunnerIAM
+Parameters:
+  EnvType:
+    Description: Environment type.
+    Type: String
+    AllowedValues:
+      - PreProduction
+      - Staging
+      - Production
+  DebugName:
+    Description: DebugName
+    Type: String
+    Default: ""
+Conditions:
+  IsAllRoleCreateEnv: !Not
+    - !Equals
+      - !Ref EnvType
+      - PreProduction
+Resources:
+  BatchRole:
+    Type: AWS::IAM::Role
+    DeletionPolicy: Retain
+    Condition: IsAllRoleCreateEnv
+    Properties:
+      Path: /
+      RoleName: !Sub ${DebugName}${EnvType}OptimiseBiddingMLBatchRole
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+                - spotfleet.amazonaws.com
+                - batch.amazonaws.com
+            Action: sts:AssumeRole
+      Description: Allows Batch to create and manage AWS resources on your behalf.
+      MaxSessionDuration: 3600
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2SpotFleetAutoscaleRole
+        - arn:aws:iam::aws:policy/service-role/AWSBatchServiceRole
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2SpotFleetTaggingRole
+        - arn:aws:iam::aws:policy/AmazonSSMReadOnlyAccess
+      Policies:
+        - PolicyName: PassRole
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iam:Get*
+                  - iam:List*
+                  - iam:PassRole
+                Resource: "*"
+  LambdaRole:
+    Type: AWS::IAM::Role
+    DeletionPolicy: Retain
+    Properties:
+      Path: /
+      RoleName: !Sub ${DebugName}${EnvType}OptimiseBiddingMLLambdaRole
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Description: Allows Lambda functions to call AWS services on your behalf.
+      MaxSessionDuration: 3600
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+        - arn:aws:iam::aws:policy/AmazonSSMReadOnlyAccess
+      Policies:
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: logs:CreateLogGroup
+                Resource: !Sub arn:aws:logs:ap-northeast-1:${AWS::AccountId}:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub arn:aws:logs:ap-northeast-1:${AWS::AccountId}:log-group:/aws/lambda/${DebugName}${EnvType}OptimiseBiddingML*
+  StepFunctionsRole:
+    Type: AWS::IAM::Role
+    DeletionPolicy: Retain
+    Condition: IsAllRoleCreateEnv
+    Properties:
+      Path: /
+      RoleName: !Sub ${DebugName}${EnvType}OptimiseBiddingMLStepFunctions
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: ""
+            Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
+      Description: Allows Step Functions to access AWS resources on your behalf.
+      MaxSessionDuration: 3600
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSBatchServiceRole
+        - arn:aws:iam::aws:policy/AWSBatchFullAccess
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaRole
+        - arn:aws:iam::aws:policy/AWSStepFunctionsFullAccess
+      Policies:
+        - PolicyName: StepFunctionsPublishSNS
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: VisualEditor0
+                Effect: Allow
+                Action: sns:Publish
+                Resource: !Sub arn:aws:sns:*:${AWS::AccountId}:*OptimiseBiddingML*
+        - PolicyName: EventBridge
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: VisualEditor0
+                Effect: Allow
+                Action: events:*
+                Resource: "*"
+  ECRReadOnlyPolicy:
+    Type: 'AWS::IAM::Policy'
+    Condition: IsAllRoleCreateEnv
+    Properties:
+      PolicyName: ECRReadOnly
+      Roles:
+        - !Ref StepFunctionsRole
+        - !Ref BatchRole
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: VisualEditor0
+            Effect: Allow
+            Action:
+              - ecr:DescribeImageScanFindings
+              - ecr:GetLifecyclePolicyPreview
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:DescribeImages
+              - ecr:DescribeRepositories
+              - ecr:ListTagsForResource
+              - ecr:ListImages
+              - ecr:BatchCheckLayerAvailability
+              - ecr:GetRepositoryPolicy
+              - ecr:GetLifecyclePolicy
+            Resource:
+              - !Sub arn:aws:ecr:ap-northeast-1:${AWS::AccountId}:repository/negocia/optimise-bidding-ml
+          - Sid: VisualEditor1
+            Effect: Allow
+            Action: ecr:GetAuthorizationToken
+            Resource: "*"

@@ -1,0 +1,117 @@
+
+[
+    {
+        "description": "広告アカウントID",
+        "name": "advertising_account_id",
+        "type": "INT64",
+        "mode": "REQUIRED"
+    },
+    {
+        "description": "ポートフォリオID",
+        "name": "portfolio_id",
+        "type": "INT64",
+        "mode": "NULLABLE"
+    },
+    {
+        "description": "処理日付",
+        "name": "date",
+        "type": "DATE",
+        "mode": "REQUIRED"
+    },
+    {
+        "description": "ML対象として指定されたユニットか",
+        "name": "is_ml_enabled",
+        "type": "BOOL",
+        "mode": "NULLABLE"
+    },
+    {
+        "description": "前日にML適用されていたか",
+        "name": "is_lastday_ml_applied",
+        "type": "BOOL",
+        "mode": "NULLABLE"
+    },
+    {
+        "description": "PID制御処理結果の値",
+        "name": "p",
+        "type": "FLOAT64",
+        "mode": "NULLABLE"
+    },
+    {
+        "description": "PID制御処理結果の値",
+        "name": "q",
+        "type": "FLOAT64",
+        "mode": "NULLABLE"
+    },
+    {
+        "description": "PID制御処理結果の値",
+        "name": "p_kp",
+        "type": "FLOAT64",
+        "mode": "NULLABLE"
+    },
+    {
+        "description": "PID制御処理結果の値",
+        "name": "p_ki",
+        "type": "FLOAT64",
+        "mode": "NULLABLE"
+    },
+    {
+        "description": "PID制御処理結果の値",
+        "name": "p_kd",
+        "type": "FLOAT64",
+        "mode": "NULLABLE"
+    },
+    {
+        "description": "PID制御処理結果の値",
+        "name": "p_error",
+        "type": "FLOAT64",
+        "mode": "NULLABLE"
+    },
+    {
+        "description": "PID制御処理結果の値",
+        "name": "p_sum_error",
+        "type": "FLOAT64",
+        "mode": "NULLABLE"
+    },
+    {
+        "description": "PID制御処理結果の値",
+        "name": "q_kp",
+        "type": "FLOAT64",
+        "mode": "NULLABLE"
+    },
+    {
+        "description": "PID制御処理結果の値",
+        "name": "q_ki",
+        "type": "FLOAT64",
+        "mode": "NULLABLE"
+    },
+    {
+        "description": "PID制御処理結果の値",
+        "name": "q_kd",
+        "type": "FLOAT64",
+        "mode": "NULLABLE"
+    },
+    {
+        "description": "PID制御処理結果の値",
+        "name": "q_error",
+        "type": "FLOAT64",
+        "mode": "NULLABLE"
+    },
+    {
+        "description": "PID制御処理結果の値",
+        "name": "q_sum_error",
+        "type": "FLOAT64",
+        "mode": "NULLABLE"
+    },
+    {
+        "description": "処理日のユニット日予算",
+        "name": "target_cost",
+        "type": "FLOAT64",
+        "mode": "NULLABLE"
+    },
+    {
+        "description": "処理日の目標KPI",
+        "name": "target_kpi",
+        "type": "STRING",
+        "mode": "NULLABLE"
+    }
+]

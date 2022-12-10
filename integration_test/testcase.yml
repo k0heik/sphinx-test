@@ -1,0 +1,98 @@
+default:
+  processing_date: '2022-10-16'
+  history_days: 30
+  num_past_days: 3
+  is_lastday_ml_applied: True
+  is_mock_kpi_prediction: True
+  unit:
+    mode: "budget"
+    purpose: "roas"
+    target_kpi_value: 10
+    optimization_costs: 620000
+    is_opt_enabled: true
+    yesterday_target_cost: 20000
+    yesterday_pid_result:
+      p: 0.01
+      q: 0.01
+      p_kp: 0.1
+      p_kd: 1e-5
+      p_ki: 0.1
+      q_kp: 0.1
+      q_kd: 1e-5
+      q_ki: 0.1
+      p_error: 0
+      p_sum_error: 0
+      q_error: 0
+      q_sum_error: 0
+  campaign:
+    default:
+      minimum_daily_budget: 100
+      maximum_daily_budget: 21000000
+      performance:
+        impressions: 10000
+        clicks: 100
+        conversions: 10
+        sales: 10000
+        costs: 10000
+    list:
+      - id: 101
+        current_daily_budget: 10000
+        yesterday_daily_budget_weight: 0.5
+      - id: 102
+        current_daily_budget: 10000
+        yesterday_daily_budget_weight: 0.5
+  ad:
+    default:
+      is_enabled_bidding_auto_adjustment: True
+      performance:
+        impressions: 10000
+        clicks: 100
+        conversions: 10
+        sales: 10000
+        costs: 10000
+      current_bidding_price: 110
+      today_predicted_cpc: 100
+      today_predicted_cvr: 0.1
+      today_predicted_spa: 1000
+      minimum_bidding_price: 100
+      maximum_bidding_price: 21000000
+    list:
+      - id: 9001
+        campaign_id: 101
+        ad_type: keyword
+      - id: 9002
+        campaign_id: 102
+        ad_type: product_targeting
+      - id: 9003
+        campaign_id: 102
+        ad_type: targeting
+  validations:
+    bid_direction: null
+    budget_direction: null
+cases:
+  - name: "train_and_prediction"
+    description: "KPI推定処理の訓練および推定がエラーなく動くかのテスト"
+    is_mock_kpi_prediction: False
+  - name: "budget_mode_budget_exceeding_kpi_short"
+    description: "Case No.5, 23 予算優先、予算超過、効率未達: 入札額/日予算を下げる方向"
+    unit:
+      optimization_costs: 400000
+      yesterday_target_cost: 12100
+    validations:
+      bid_direction: -1
+      budget_direction: -1
+  - name: "budget_short_begin_of_the_month"
+    description: "Case No.28 前月末の予算が尽きている場合の月初"
+    processing_date: '2022-11-01'
+    unit:
+      optimization_costs: 200000
+      yesterday_target_cost: 0
+    campaign:
+      list:
+        - id: 101
+          current_daily_budget: 100
+        - id: 102
+          current_daily_budget: 100
+    validations:
+      bid_direction: null
+      budget_direction: 1

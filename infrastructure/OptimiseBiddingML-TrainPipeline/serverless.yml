@@ -1,0 +1,121 @@
+service: OptimiseBiddingML-TrainPipeline
+
+plugins:
+  - serverless-step-functions
+  - serverless-pseudo-parameters
+
+provider:
+  name: aws
+  runtime: python3.8
+  region: ap-northeast-1
+  stage: ${opt:stage, 'Staging'}
+  deploymentBucket:
+    name: sophiaai-serverless-deploy
+
+# stop building when serverless.yml is config error
+configValidationMode: error
+
+package:
+  exclude:
+    - node_modules/**
+
+custom:
+  Staging:
+    states_cpc: arn:aws:states:ap-northeast-1:781667190002:stateMachine:StagingOptimiseBiddingML-TrainCPC
+    states_cvr: arn:aws:states:ap-northeast-1:781667190002:stateMachine:StagingOptimiseBiddingML-TrainCVR
+    states_spa: arn:aws:states:ap-northeast-1:781667190002:stateMachine:StagingOptimiseBiddingML-TrainSPA
+    states_role_arn: arn:aws:iam::781667190002:role/StagingOptimiseBiddingMLStepFunctions
+    sns_arn: arn:aws:sns:ap-northeast-1:781667190002:StagingOptimiseBiddingML
+    slack_channel: 10_sophia_ai_event_notification_dev
+    slack_channel_failed: 10_sophia_ai_error_notification_dev
+  PreProduction:
+    states_cpc: arn:aws:states:ap-northeast-1:781667190002:stateMachine:PreProductionOptimiseBiddingML-TrainCPC
+    states_cvr: arn:aws:states:ap-northeast-1:781667190002:stateMachine:PreProductionOptimiseBiddingML-TrainCVR
+    states_spa: arn:aws:states:ap-northeast-1:781667190002:stateMachine:PreProductionOptimiseBiddingML-TrainSPA
+    states_role_arn: arn:aws:iam::781667190002:role/StagingOptimiseBiddingMLStepFunctions
+    sns_arn: arn:aws:sns:ap-northeast-1:781667190002:StagingOptimiseBiddingML
+    slack_channel: 10_sophia_ai_event_notification_dev
+    slack_channel_failed: 10_sophia_ai_error_notification_dev
+  Production:
+    states_cpc: arn:aws:states:ap-northeast-1:781667190002:stateMachine:ProductionOptimiseBiddingML-TrainCPC
+    states_cvr: arn:aws:states:ap-northeast-1:781667190002:stateMachine:ProductionOptimiseBiddingML-TrainCVR
+    states_spa: arn:aws:states:ap-northeast-1:781667190002:stateMachine:ProductionOptimiseBiddingML-TrainSPA
+    states_role_arn: arn:aws:iam::781667190002:role/ProductionOptimiseBiddingMLStepFunctions
+    sns_arn: arn:aws:sns:ap-northeast-1:781667190002:ProductionOptimiseBiddingML
+    slack_channel: 10_sophia_ai_event_notification
+    slack_channel_failed: 10_sophia_ai_error_notification
+
+stepFunctions:
+  stateMachines:
+    StateMachine1:
+      name: ${self:provider.stage}${self:service}
+      role: ${self:custom.${self:provider.stage}.states_role_arn}
+      definition:
+        StartAt: cpc_cvr_spa_training
+        States:
+          cpc_cvr_spa_training:
+            Type: Parallel
+            Next: send_SNS_end
+            ResultPath: "$.Result"
+            Branches:
+              - StartAt: send_SNS_start
+                States:
+                  send_SNS_start:
+                    Type: Task
+                    Resource: "arn:aws:states:::sns:publish"
+                    ResultPath: "$.sns_start"
+                    Parameters:
+                      Message:
+                        title: "[Stepfunctions][${self:provider.stage}]入札額調整ML:TrainPipeline"
+                        slack-channel: ${self:custom.${self:provider.stage}.slack_channel}
+                        detail:
+                          build-status: "Started"
+                      TopicArn: ${self:custom.${self:provider.stage}.sns_arn}
+                    End: True
+              - StartAt: states_cpc
+                States:
+                  states_cpc:
+                    Type: Task
+                    Resource: "arn:aws:states:::states:startExecution.sync:2"
+                    End: true
+                    Parameters:
+                      StateMachineArn: ${self:custom.${self:provider.stage}.states_cpc}
+                      Input:
+                        AWS_STEP_FUNCTIONS_STARTED_BY_EXECUTION_ID.$: "$$.Execution.Id"
+                        batch:
+                          parameters.$: "$.batch.parameters"
+              - StartAt: states_cvr
+                States:
+                  states_cvr:
+                    Type: Task
+                    Resource: "arn:aws:states:::states:startExecution.sync:2"
+                    End: true
+                    Parameters:
+                      StateMachineArn: ${self:custom.${self:provider.stage}.states_cvr}
+                      Input:
+                        AWS_STEP_FUNCTIONS_STARTED_BY_EXECUTION_ID.$: "$$.Execution.Id"
+                        batch:
+                          parameters.$: "$.batch.parameters"
+              - StartAt: states_spa
+                States:
+                  states_spa:
+                    Type: Task
+                    Resource: "arn:aws:states:::states:startExecution.sync:2"
+                    End: true
+                    Parameters:
+                      StateMachineArn: ${self:custom.${self:provider.stage}.states_spa}
+                      Input:
+                        AWS_STEP_FUNCTIONS_STARTED_BY_EXECUTION_ID.$: "$$.Execution.Id"
+                        batch:
+                          parameters.$: "$.batch.parameters"
+          send_SNS_end:
+            Type: Task
+            Resource: "arn:aws:states:::sns:publish"
+            Parameters:
+              Message:
+                title: "[Stepfunctions][${self:provider.stage}]入札額調整ML:TrainPipeline"
+                slack-channel: ${self:custom.${self:provider.stage}.slack_channel}
+                detail:
+                  build-status: "Succeeded"
+              TopicArn: ${self:custom.${self:provider.stage}.sns_arn}
+            End: true

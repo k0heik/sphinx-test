@@ -1,0 +1,10 @@
+.env
+.env.sample
+build_and_push.sh
+docker-compose.yml
+Dockerfile
+.dockerignore
+README.md
+test_lambda.py
+test_local.py
+*/__pycache__*

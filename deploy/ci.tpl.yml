@@ -1,0 +1,354 @@
+# This is a basic workflow to help you get started with Actions
+
+name: "CI"
+
+# Controls when the action will run. Triggers the workflow on push or pull request
+# events but only for the develop branch
+on:
+  pull_request:
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+{% for sub_system in sub_systems %}
+  # This workflow contains a single job called "build"
+  {{ sub_system }}:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-20.04
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+    # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+    - uses: actions/checkout@v3.1.0
+    - name: Configure AWS credential
+      uses: aws-actions/configure-aws-credentials@v1-node16
+      with:
+{% raw %}
+        aws-access-key-id: ${{ secrets.SOPHIAAI_AWS_ACCESS_KEY_ID}}
+        aws-secret-access-key: ${{ secrets.SOPHIAAI_AWS_SECRET_ACCESS_KEY }}
+        aws-region: ap-northeast-1
+{% endraw %}
+    - name: Set up Python 3.8
+      uses: actions/setup-python@v4.3.0
+      with:
+        python-version: 3.8
+    - name: Install dependencies
+      run: |
+        cd {{ sub_system }}
+        cp ../pyproject/* .
+        pip install poetry==1.2.0
+        poetry config virtualenvs.create false
+        poetry install --with sophia-ai,main
+    - name: Test with pytest
+      env:
+{%- raw %}
+        AWS_ACCESS_KEY_ID: ${{ secrets.SOPHIAAI_AWS_ACCESS_KEY_ID}}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.SOPHIAAI_AWS_SECRET_ACCESS_KEY}}
+{%- endraw %}
+      run: |
+        cd {{ sub_system }}
+        ln -s ../common_module
+        ln -s ../sophia-ai/spai spai
+        ln -s ../schema
+        ln -s ../deploy/.coveragerc .coveragerc
+        if [ -f .env.sample ]; then export $(cat .env.sample | grep -v -E "^#|^AWS_ACCESS_KEY_ID=|^AWS_SECRET_ACCESS_KEY=" | xargs); fi
+        python -m pytest tests --cache-clear --cov-config=.coveragerc --cov
+    - name: Code check with flake8
+      run: |
+        cd {{ sub_system }}
+        python -m flake8
+{% endfor %}
+  it_set_uuid:
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: actions/checkout@v3.1.0
+    - name: set .env.base
+      run: |
+        cd integration_test
+        export UUID=$(uuidgen | sed -e 's/-//g')
+        cat .env.sample \
+        | sed "s:DATASET_NAME=.*$:DATASET_NAME=bid_optimisation_ml_test_${UUID}:" \
+        | sed "s:COMMERCE_FLOW_DATASET_NAME=.*$:COMMERCE_FLOW_DATASET_NAME=bid_optimisation_ml_test_${UUID}_commerce_flow:" \
+        | sed "s:WORKING_DATASET_NAME=.*$:WORKING_DATASET_NAME=bid_optimisation_ml_test_${UUID}_work:" \
+        >> .env.base
+    - uses: actions/upload-artifact@v3.1.1
+      with:
+        name: {% raw %}${{ github.run_number }}-.env.base{% endraw %}
+        path: integration_test/.env.base
+  it_prepare_testdata:
+    runs-on: ubuntu-20.04
+    needs: it_set_uuid
+    steps:
+    - uses: actions/checkout@v3.1.0
+    - uses: actions/download-artifact@v3.0.1
+      with:
+        name: {% raw %}${{ github.run_number }}-.env.base{% endraw %}
+        path: integration_test
+    - name: Set .env
+      env:
+{% raw %}
+        AWS_ACCESS_KEY_ID: ${{ secrets.SOPHIAAI_AWS_ACCESS_KEY_ID}}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.SOPHIAAI_AWS_SECRET_ACCESS_KEY}}
+{% endraw %}
+      run: |
+        cd integration_test
+        cat .env.base \
+        | sed "s:AWS_ACCESS_KEY_ID=.*$:AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}:" \
+        | sed "s:AWS_SECRET_ACCESS_KEY=.*$:AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}:" \
+        >> .env
+    - name: Configure AWS credential
+      uses: aws-actions/configure-aws-credentials@v1-node16
+      with:
+{% raw %}
+        aws-access-key-id: ${{ secrets.SOPHIAAI_AWS_ACCESS_KEY_ID}}
+        aws-secret-access-key: ${{ secrets.SOPHIAAI_AWS_SECRET_ACCESS_KEY }}
+        aws-region: ap-northeast-1
+{% endraw %}
+    - name: Set up Python 3.8
+      uses: actions/setup-python@v4.3.0
+      with:
+        python-version: 3.8
+    - name: Install dependencies
+      run: |
+        cd integration_test
+        python -m pip install --upgrade pip wheel
+        pip install flake8 pytest pytest-cov pytest-mock
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+    - name: Prepare test data
+      run: |
+        cd integration_test
+        inv reset-dataset
+        inv create-all-tables
+        inv prepare-test-data
+{% for sub_system in it_build_targets %}
+  build_{{ sub_system }}:
+    runs-on: ubuntu-20.04
+    env:
+      DOCKER_BUILDKIT: '1'
+    needs: it_set_uuid
+    steps:
+    - uses: actions/checkout@v3.1.0
+    - uses: actions/download-artifact@v3.0.1
+      with:
+        name: {% raw %}${{ github.run_number }}-.env.base{% endraw %}
+        path: integration_test
+    - name: Set .env
+      env:
+{% raw %}
+        AWS_ACCESS_KEY_ID: ${{ secrets.SOPHIAAI_AWS_ACCESS_KEY_ID}}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.SOPHIAAI_AWS_SECRET_ACCESS_KEY}}
+{% endraw %}
+      run: |
+        cd integration_test
+        cat .env.base \
+        | sed "s:AWS_ACCESS_KEY_ID=.*$:AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}:" \
+        | sed "s:AWS_SECRET_ACCESS_KEY=.*$:AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}:" \
+        >> .env
+    - name: Configure AWS credential
+      uses: aws-actions/configure-aws-credentials@v1-node16
+      with:
+{% raw %}
+        aws-access-key-id: ${{ secrets.SOPHIAAI_AWS_ACCESS_KEY_ID}}
+        aws-secret-access-key: ${{ secrets.SOPHIAAI_AWS_SECRET_ACCESS_KEY }}
+        aws-region: ap-northeast-1
+{% endraw %}
+    - name: Set up Python 3.8
+      uses: actions/setup-python@v4.3.0
+      with:
+        python-version: 3.8
+    - name: Install dependencies
+      run: |
+        cd integration_test
+        python -m pip install --upgrade pip wheel
+        pip install flake8 pytest pytest-cov pytest-mock
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+    - name: Build a container
+      run: |
+        cd integration_test
+        inv build-container-by-name {{ sub_system }}
+        docker save {{ sub_system }} | gzip -c > {{ sub_system }}.tar.gz
+    - uses: actions/upload-artifact@v3.1.1
+      with:
+        name: {% raw %}${{ github.run_number }}-tarball-{% endraw %}{{ sub_system }}
+        path: integration_test/{{ sub_system }}.tar.gz
+{% endfor %}
+  run_it:
+    env:
+      DOCKER_BUILDKIT: '1'
+    runs-on: ubuntu-20.04
+    needs: [{{ it_needs | join(', ') }}]
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+    # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+    - uses: actions/checkout@v3.1.0
+    - uses: actions/download-artifact@v3.0.1
+      with:
+        name: {% raw %}${{ github.run_number }}-.env.base{% endraw %}
+        path: integration_test
+    - name: Set .env
+      env:
+{% raw %}
+        AWS_ACCESS_KEY_ID: ${{ secrets.SOPHIAAI_AWS_ACCESS_KEY_ID}}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.SOPHIAAI_AWS_SECRET_ACCESS_KEY}}
+{% endraw %}
+      run: |
+        cd integration_test
+        cat .env.base \
+        | sed "s:AWS_ACCESS_KEY_ID=.*$:AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}:" \
+        | sed "s:AWS_SECRET_ACCESS_KEY=.*$:AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}:" \
+        >> .env
+    - name: Configure AWS credential
+      uses: aws-actions/configure-aws-credentials@v1-node16
+      with:
+{% raw %}
+        aws-access-key-id: ${{ secrets.SOPHIAAI_AWS_ACCESS_KEY_ID}}
+        aws-secret-access-key: ${{ secrets.SOPHIAAI_AWS_SECRET_ACCESS_KEY }}
+        aws-region: ap-northeast-1
+{% endraw %}
+    - name: Set up Python 3.8
+      uses: actions/setup-python@v4.3.0
+      with:
+        python-version: 3.8
+    - name: Install dependencies
+      run: |
+        cd integration_test
+        python -m pip install --upgrade pip wheel
+        pip install flake8 pytest pytest-cov pytest-mock
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+    - name: mkdir tmp dir
+      run: |
+        mkdir tarballs
+{% for sub_system in it_build_targets %}
+    - uses: actions/download-artifact@v3.0.1
+      with:
+        name: {% raw %}${{ github.run_number }}-tarball-{% endraw %}{{ sub_system }}
+        path: tarballs{% endfor %}
+    - name: Load Builded Containers
+      run: |
+{% for sub_system in it_build_targets %}
+        cat tarballs/{{ sub_system }}.tar.gz | gzip -d | docker load {% endfor %}
+    - name: Run Integration Test
+      run: |
+        cd integration_test
+        bash run_it.sh
+  delete_test_dataset_and_artifacts:
+    env:
+      DOCKER_BUILDKIT: '1'
+    runs-on: ubuntu-20.04
+    if: always()
+    needs: [it_prepare_testdata, run_it]
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+    # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+    - uses: actions/checkout@v3.1.0
+    - uses: actions/download-artifact@v3.0.1
+      with:
+        name: {% raw %}${{ github.run_number }}-.env.base{% endraw %}
+        path: integration_test
+    - name: Set .env
+      env:
+{% raw %}
+        AWS_ACCESS_KEY_ID: ${{ secrets.SOPHIAAI_AWS_ACCESS_KEY_ID}}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.SOPHIAAI_AWS_SECRET_ACCESS_KEY}}
+{% endraw %}
+      run: |
+        cd integration_test
+        cat .env.base \
+        | sed "s:AWS_ACCESS_KEY_ID=.*$:AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}:" \
+        | sed "s:AWS_SECRET_ACCESS_KEY=.*$:AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}:" \
+        >> .env
+    - name: Configure AWS credential
+      uses: aws-actions/configure-aws-credentials@v1-node16
+      with:
+{% raw %}
+        aws-access-key-id: ${{ secrets.SOPHIAAI_AWS_ACCESS_KEY_ID}}
+        aws-secret-access-key: ${{ secrets.SOPHIAAI_AWS_SECRET_ACCESS_KEY }}
+        aws-region: ap-northeast-1
+{% endraw %}
+    - name: Set up Python 3.8
+      uses: actions/setup-python@v4.3.0
+      with:
+        python-version: 3.8
+    - name: Install dependencies
+      run: |
+        cd integration_test
+        python -m pip install --upgrade pip wheel
+        pip install flake8 pytest pytest-cov pytest-mock
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+    - name: Clean up
+      run: |
+        cd integration_test
+        inv delete-dataset
+    - uses: geekyeggo/delete-artifact@v2.0.0
+      with:
+        name: |
+          {% raw %}${{ github.run_number }}-.env.base{% endraw %}
+{% for sub_system in it_build_targets %}
+          {% raw %}${{ github.run_number }}-tarball-{% endraw %}{{ sub_system }}{% endfor %}
+  slack_notify_success:
+    runs-on: ubuntu-20.04
+    if: always()
+    needs: [{{ notify_needs | join(', ') }}]
+    steps:{% raw %}
+    - uses: actions/checkout@v3.1.0
+    - uses: technote-space/workflow-conclusion-action@v3.0.2
+    - name: Set COMMIT_MESSAGE
+      run: echo "COMMIT_MESSAGE=$(echo ${{ github.event.head_commit.message }} | tr '\n' ' '|tr '\"' ' ' )" >> $GITHUB_ENV
+    - name: Slack Notification on SUCCESS
+      uses: slackapi/slack-github-action@v1.23.0
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SOPHIAAI_SLACK_WEBHOOK_URL }}
+        SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+      with:
+        payload: |
+          {
+            "text": "Successfully.",
+            "attachments": [
+              {
+                "color": "good",
+                "author_name": "${{ github.actor }}",
+                "author_icon": "${{ github.event.sender.avatar_url }}",
+                "fields": [
+                  {
+                    "title": "GitHub Actions URL",
+                    "value": "${{ github.event.repository.html_url }}/actions/runs/${{ github.run_id }}"
+                  }
+                ]
+              }
+            ]
+          }
+      if: env.WORKFLOW_CONCLUSION == 'success'
+{% endraw %}
+  slack_notify_failure:
+    runs-on: ubuntu-20.04
+    if: always()
+    needs: [{{ notify_needs | join(', ') }}]
+    steps:{% raw %}
+    - uses: actions/checkout@v3.1.0
+    - uses: technote-space/workflow-conclusion-action@v3.0.2
+    - name: Set COMMIT_MESSAGE
+      run: echo "COMMIT_MESSAGE=$(echo ${{ github.event.head_commit.message }} | tr '\n' ' '|tr '\"' ' ' )" >> $GITHUB_ENV
+    - name: Slack Notification on FAILED
+      uses: slackapi/slack-github-action@v1.23.0
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SOPHIAAI_SLACK_WEBHOOK_URL }}
+        SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+      with:
+        payload: |
+          {
+            "text": "Failed.",
+            "attachments": [
+              {
+                "color": "danger",
+                "author_name": "${{ github.actor }}",
+                "author_icon": "${{ github.event.sender.avatar_url }}",
+                "fields": [
+                  {
+                    "title": "GitHub Actions URL",
+                    "value": "${{ github.event.repository.html_url }}/actions/runs/${{ github.run_id }}"
+                  }
+                ]
+              }
+            ]
+          }
+      if: env.WORKFLOW_CONCLUSION == 'failure'
+{% endraw %}

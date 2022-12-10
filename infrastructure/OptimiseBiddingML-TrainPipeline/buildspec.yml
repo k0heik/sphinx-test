@@ -1,0 +1,25 @@
+version: 0.2
+
+env:
+  shell: bash
+  variables:
+    DOCKER_BUILDKIT: "1"
+  parameter-store:
+    AWS_SECRET_ACCESS_KEY: /Seemple/Zappa_Deployer_Secret_Key
+    AWS_ACCESS_KEY_ID: /Seemple/Zappa_Deployer_Access_Key
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.8
+
+  build:
+    commands:
+      - cd infrastructure/OptimiseBiddingML-TrainPipeline
+      - cp ../commons/package.json .
+      - npm config set save-exact true
+      - npm install
+      - npm install -g serverless@2.72.2
+      - npm list --depth=0 | grep step-functions
+      - sls config credentials --provider aws --key $AWS_ACCESS_KEY_ID --secret $AWS_SECRET_ACCESS_KEY
+      - sls deploy --stage $TARGET_ENV

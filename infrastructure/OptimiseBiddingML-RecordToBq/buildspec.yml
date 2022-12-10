@@ -1,0 +1,62 @@
+version: 0.2
+
+env:
+  shell: bash
+  variables:
+    DOCKER_BUILDKIT: "1"
+  parameter-store:
+    DATADOG_API_KEY: /SOPHIAAI/DATADOG/API_KEY
+    DATADOG_APPLICATION_KEY: /SOPHIAAI/DATADOG/APPLICATION_KEY/MONITORING_DEPLOYER
+    AWS_SECRET_ACCESS_KEY: /Seemple/Zappa_Deployer_Secret_Key
+    AWS_ACCESS_KEY_ID: /Seemple/Zappa_Deployer_Access_Key
+    DOCKERHUB_USERNAME: /SOPHIAAI/DOKCERHUB/ID
+    DOCKERHUB_PASSWORD: /SOPHIAAI/DOKCERHUB/PASSWORD
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.8
+
+  pre_build:
+    commands:
+      - curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg > gpg.txt
+      - apt-key add gpg.txt
+      - apt-get -y update
+      - pip install --upgrade awscli
+      - subsystem_dir_name="record_to_bq"
+      - image_tag="record_to_bq-${TARGET_ENV,,}"
+      - infrastructure_dir_suffix="RecordToBq"
+      - ecr_fullname=${ECR_REPO}:${image_tag}
+      - workdir=/tmp/bid_optimisation_ml_work
+      - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID --profile zappa_deployer
+      - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY --profile zappa_deployer
+      - aws configure list
+      - aws --region ${AWS_REGION} --profile zappa_deployer ecr get-login-password | docker login --username AWS --password-stdin ${AWS_ACCOUNT}.dkr.ecr.${AWS_REGION}.amazonaws.com
+
+  build:
+    commands:
+      - source_root_dir=`pwd`
+      - mkdir -p $workdir
+      - cp -R $subsystem_dir_name $workdir/$subsystem_dir_name
+      - cp -R common_module $workdir/$subsystem_dir_name/common_module
+      - cp -R sophia-ai/spai $workdir/$subsystem_dir_name/spai
+      - cp -R schema $workdir/$subsystem_dir_name/schema
+      - cp -R pyproject $workdir/pyproject
+      - cd $workdir/$subsystem_dir_name
+      - echo "${DOCKERHUB_PASSWORD}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
+      - docker build -t builded_container --build-arg NO_DEV="yes" -f $workdir/$subsystem_dir_name/Dockerfile $workdir
+      - docker tag builded_container $ecr_fullname
+      - docker push $ecr_fullname
+      - digest=$(aws ecr list-images --repository-name negocia/optimise-bidding-ml | jq '.imageIds[] | select(.imageTag=="'"$image_tag"'") | .imageDigest' | tr -d '"')
+      - cd ${source_root_dir}/infrastructure/OptimiseBiddingML-${infrastructure_dir_suffix}
+      - cp ../commons/package.json .
+      - python3 -m pip install Jinja2==2.11.3 pyyaml==5.4.1
+      - python3 ../commons/render_serverless.py
+      - npm config set save-exact true
+      - npm install
+      - npm install -g serverless@2.72.2
+      - npm list --depth=0 | grep step-functions
+      - sls config credentials --provider aws --key $AWS_ACCESS_KEY_ID --secret $AWS_SECRET_ACCESS_KEY
+      - sls deploy --stage $TARGET_ENV --digest $digest
+      - python3 -m pip install -r ${source_root_dir}/infrastructure/commons/datadog/requirements.txt
+      - python3 ../commons/datadog/deploy_monitor.py $TARGET_ENV

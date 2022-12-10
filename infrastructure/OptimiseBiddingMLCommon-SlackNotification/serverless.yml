@@ -1,0 +1,58 @@
+service: OptimiseBiddingMLCommon-SlackNotification
+
+plugins:
+  - serverless-step-functions
+  - serverless-pseudo-parameters
+  - serverless-prune-plugin
+
+provider:
+  name: aws
+  runtime: python3.8
+  region: ap-northeast-1
+  stage: ${opt:stage, 'Staging'}
+  deploymentBucket:
+    name: sophiaai-serverless-deploy
+  logRetentionInDays: null
+
+# stop building when serverless.yml is config error
+configValidationMode: error
+
+package:
+  exclude:
+    - node_modules/**
+
+custom:
+  prune:
+    automatic: true
+    number: 3
+  Staging:
+    slack_channel: 10_sophia_ai_event_notification_dev
+    tz: Asia/Tokyo
+    log_retention_in_days: 7
+  PreProduction:
+    slack_channel: 10_sophia_ai_event_notification_dev
+    tz: Asia/Tokyo
+    log_retention_in_days: 7
+  Production:
+    slack_channel: 10_sophia_ai_event_notification
+    tz: Asia/Tokyo
+    log_retention_in_days: null
+
+functions:
+  SlackNotification:
+    name: ${self:provider.stage}${self:service}
+    handler: slack_notification.lambda_handler
+    memorySize: 256
+    timeout: 900
+    environment:
+      TZ: ${self:custom.${self:provider.stage}.tz}
+      slackChannel: ${self:custom.${self:provider.stage}.slack_channel}
+      HookUrl: https://hooks.slack.com/services/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
+    role: arn:aws:iam::781667190002:role/${self:provider.stage}SeempleLambdaRole
+
+resources:
+  Resources:
+    SlackNotificationLogGroup:
+      Type: AWS::Logs::LogGroup
+      Properties:
+        RetentionInDays: ${self:custom.${self:provider.stage}.log_retention_in_days}

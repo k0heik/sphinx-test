@@ -1,0 +1,8 @@
+service_name: OptimiseBiddingML
+subsystem_name: RecordToBq
+monitor_settings:
+  default:
+    aws_service_type: Lambda
+    monitor_types:
+      - MemoryUtilization
+      - Error

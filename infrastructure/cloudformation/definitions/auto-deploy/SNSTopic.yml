@@ -1,0 +1,66 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: OptmiseBiddingML SNSTopic
+Parameters:
+  EnvType:
+    Description: Environment type.
+    Type: String
+    AllowedValues:
+      - PreProduction
+      - Staging
+      - Production
+  DebugName:
+    Description: DebugName
+    Type: String
+    Default: ""
+Resources:
+  SNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub ${DebugName}${EnvType}OptimiseBiddingML
+      DisplayName: ""
+      FifoTopic: False
+      Subscription:
+        - Protocol: lambda
+          Endpoint: !Sub arn:aws:lambda:ap-northeast-1:${AWS::AccountId}:function:${EnvType}OptimiseBiddingMLCommon-SlackNotification
+
+  SNSTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      PolicyDocument:
+        Version: 2008-10-17
+        Id: __default_policy_ID
+        Statement:
+          - Sid: __default_statement_ID
+            Effect: Allow
+            Principal:
+              AWS: "*"
+            Action:
+              - SNS:Publish
+              - SNS:RemovePermission
+              - SNS:SetTopicAttributes
+              - SNS:DeleteTopic
+              - SNS:ListSubscriptionsByTopic
+              - SNS:GetTopicAttributes
+              - SNS:Receive
+              - SNS:AddPermission
+              - SNS:Subscribe
+            Resource: !Sub arn:aws:sns:ap-northeast-1:${AWS::AccountId}:${EnvType}OptimiseBiddingML
+            Condition:
+              StringEquals:
+                AWS:SourceOwner: !Sub "${AWS::AccountId}"
+          - Sid: __console_pub_0
+            Effect: Allow
+            Principal:
+              AWS: "*"
+            Action: SNS:Publish
+            Resource: !Sub arn:aws:sns:ap-northeast-1:${AWS::AccountId}:${EnvType}OptimiseBiddingML
+          - Sid: __console_sub_0
+            Effect: Allow
+            Principal:
+              AWS: "*"
+            Action:
+              - SNS:Subscribe
+              - SNS:Receive
+            Resource: !Sub arn:aws:sns:ap-northeast-1:${AWS::AccountId}:${EnvType}OptimiseBiddingML
+      Topics:
+        - !Ref SNSTopic

@@ -1,0 +1,261 @@
+service: OptimiseBiddingML-{{ suffix }}
+
+plugins:
+  - serverless-plugin-select-resource
+  - serverless-step-functions
+  - serverless-pseudo-parameters
+
+provider:
+  name: aws
+  runtime: python3.8
+  region: ap-northeast-1
+  stage: ${opt:stage, 'Staging'}
+  deploymentBucket:
+    name: sophiaai-serverless-deploy
+
+# warn when serverless.yml is config error
+configValidationMode: warn
+
+package:
+  exclude:
+    - node_modules/**
+
+custom:
+  Staging:
+    job_queue: arn:aws:batch:ap-northeast-1:781667190002:job-queue/StagingOptimiseBiddingML-{{ suffix }}
+    ecr_image: 781667190002.dkr.ecr.ap-northeast-1.amazonaws.com/negocia/optimise-bidding-ml:{{ ecr_prefix }}-staging
+    states_role_arn: arn:aws:iam::781667190002:role/StagingOptimiseBiddingMLStepFunctions
+    batch_exec_arn: arn:aws:iam::781667190002:role/StagingOptimiseBiddingMLBatchRole
+    security_group: sg-017bcff45beb17300
+    subnets:
+      - subnet-0f6b5d4d3c4fa1ef5
+      - subnet-0deef12bb67e7501c
+      - subnet-0b69980ecd085dd83
+      - subnet-048b472cc62697e32
+    sns_arn: arn:aws:sns:ap-northeast-1:781667190002:StagingOptimiseBiddingML
+    slack_channel: 10_sophia_ai_event_notification_dev
+    slack_channel_failed: 10_sophia_ai_error_notification_dev
+    log_retention_in_days: 7
+    container_env:
+      AWS_DEFAULT_REGION: ap-northeast-1
+      BUCKET: optimise-bidding-ml-staging
+      GCP_PROJECT_ID: sophiaai-staging
+      DATASET_NAME: bid_optimisation_ml
+      COMMERCE_FLOW_DATASET_NAME: commerce_flow
+      GCS_BUCKET: optimise-bidding-ml-staging
+      SSM_GCP_KEY_PARAMETER_NAME: /SOPHIAAI/DWH/GCP/ACCESS_KEY/STAGING
+      TZ: Asia/Tokyo
+      DASK_BATCH_SIZE: 32
+  PreProduction:
+    job_queue: arn:aws:batch:ap-northeast-1:781667190002:job-queue/StagingOptimiseBiddingML-{{ suffix }}
+    ecr_image: 781667190002.dkr.ecr.ap-northeast-1.amazonaws.com/negocia/optimise-bidding-ml:{{ ecr_prefix }}-preproduction
+    states_role_arn: arn:aws:iam::781667190002:role/StagingOptimiseBiddingMLStepFunctions
+    batch_exec_arn: arn:aws:iam::781667190002:role/StagingOptimiseBiddingMLBatchRole
+    security_group: sg-017bcff45beb17300
+    subnets:
+      - subnet-0f6b5d4d3c4fa1ef5
+      - subnet-0deef12bb67e7501c
+      - subnet-0b69980ecd085dd83
+      - subnet-048b472cc62697e32
+    sns_arn: arn:aws:sns:ap-northeast-1:781667190002:StagingOptimiseBiddingML
+    slack_channel: 10_sophia_ai_event_notification_dev
+    slack_channel_failed: 10_sophia_ai_error_notification_dev
+    log_retention_in_days: 7
+    container_env:
+      AWS_DEFAULT_REGION: ap-northeast-1
+      BUCKET: optimise-bidding-ml-preproduction
+      GCP_PROJECT_ID: sophiaai-preproduction
+      DATASET_NAME: bid_optimisation_ml
+      COMMERCE_FLOW_DATASET_NAME: commerce_flow
+      GCS_BUCKET: optimise-bidding-ml-preproduction
+      SSM_GCP_KEY_PARAMETER_NAME: /SOPHIAAI/DWH/GCP/ACCESS_KEY/PREPRODUCTION
+      TZ: Asia/Tokyo
+      DASK_BATCH_SIZE: 8
+  Production:
+    job_queue: arn:aws:batch:ap-northeast-1:781667190002:job-queue/ProductionOptimiseBiddingML-{{ suffix }}
+    ecr_image: 781667190002.dkr.ecr.ap-northeast-1.amazonaws.com/negocia/optimise-bidding-ml:{{ ecr_prefix }}-production
+    states_role_arn: arn:aws:iam::781667190002:role/ProductionOptimiseBiddingMLStepFunctions
+    batch_exec_arn: arn:aws:iam::781667190002:role/ProductionOptimiseBiddingMLBatchRole
+    security_group: sg-0d0fff4015a62f773
+    subnets:
+      - subnet-0a5d114d1cdca0356
+      - subnet-0b640e8cb6d5ba625
+    sns_arn: arn:aws:sns:ap-northeast-1:781667190002:ProductionOptimiseBiddingML
+    slack_channel: 10_sophia_ai_event_notification
+    slack_channel_failed: 10_sophia_ai_error_notification
+    log_retention_in_days: null
+    container_env:
+      AWS_DEFAULT_REGION: ap-northeast-1
+      BUCKET: optimise-bidding-ml-production
+      GCP_PROJECT_ID: sophiaai-production
+      DATASET_NAME: bid_optimisation_ml
+      COMMERCE_FLOW_DATASET_NAME: commerce_flow
+      GCS_BUCKET: optimise-bidding-ml-production
+      SSM_GCP_KEY_PARAMETER_NAME: /SOPHIAAI/DWH/GCP/ACCESS_KEY/PRODUCTION
+      TZ: Asia/Tokyo
+      DASK_BATCH_SIZE: 8
+
+stepFunctions:
+  stateMachines:
+    StateMachine1:
+      name: ${self:provider.stage}${self:service}
+      role: ${self:custom.${self:provider.stage}.states_role_arn}
+      definition:
+        StartAt: send_SNS_start
+        States:
+          send_SNS_start:
+            Type: Task
+            Resource: "arn:aws:states:::sns:publish"
+            ResultPath: "$.sns_start"
+            Parameters:
+              Message:
+                title: "[Stepfunctions][${self:provider.stage}]入札額調整ML:{{ message_title_suffix }}"
+                slack-channel: ${self:custom.${self:provider.stage}.slack_channel}
+                detail:
+                  build-status: "Started"
+              TopicArn: ${self:custom.${self:provider.stage}.sns_arn}
+            Next: {{ batch_name }}
+          {{ batch_name }}:
+            Type: Task
+            Retry:
+              - ErrorEquals:
+                - States.ALL
+                IntervalSeconds: 3
+                MaxAttempts: 3
+            Next: send_SNS_end
+            Resource: "arn:aws:states:::batch:submitJob.sync"
+            Parameters:
+              JobDefinition: "#{JobDefinition}"
+              JobName: executed_by_stepfunc
+              JobQueue: ${self:custom.${self:provider.stage}.job_queue}
+              Parameters.$: "$.batch.parameters"
+            InputPath: "$"
+            ResultPath: "$"
+            Catch:
+              - ErrorEquals: ["States.ALL"]
+                Next: send_SNS_fail
+          send_SNS_end:
+            Type: Task
+            Resource: "arn:aws:states:::sns:publish"
+            Parameters:
+              Message:
+                title: "[Stepfunctions][${self:provider.stage}]入札額調整ML:{{ message_title_suffix }}"
+                slack-channel: ${self:custom.${self:provider.stage}.slack_channel}
+                detail:
+                  build-status: "Succeeded"
+              TopicArn: ${self:custom.${self:provider.stage}.sns_arn}
+            End: true
+          send_SNS_fail:
+            Type: Task
+            Resource: "arn:aws:states:::sns:publish"
+            Parameters:
+              Message:
+                title: "[Stepfunctions][${self:provider.stage}]入札額調整ML:{{ message_title_suffix }}"
+                slack-channel: ${self:custom.${self:provider.stage}.slack_channel_failed}
+                detail:
+                  build-status: "Failed"
+                  error.$: "$.Error"
+                  cause.$: "$.Cause"
+              TopicArn: ${self:custom.${self:provider.stage}.sns_arn}{% if batch_enable_fail %}
+            Next: end_fail
+          end_fail:
+            Type: Fail{% else %}
+            End: true{% endif %}
+
+resources:
+  Resources:
+    ComputeEnvironment:
+      Type: AWS::Batch::ComputeEnvironment
+      Properties:
+        Type: MANAGED
+        ServiceRole: arn:aws:iam::#{AWS::AccountId}:role/service-role/AWSBatchServiceRole
+        ComputeEnvironmentName: ${self:provider.stage}${self:service}
+        ComputeResources:
+          MaxvCpus: {{ compute_env_maxcpus }}
+          MinvCpus: {{ compute_env_mincpus }}
+          DesiredvCpus: {{ compute_env_disiredcpus }}
+          SecurityGroupIds:
+            - ${self:custom.${self:provider.stage}.security_group}
+          Type: EC2
+          SpotIamFleetRole: arn:aws:iam::#{AWS::AccountId}:role/aws-ec2-spot-fleet-tagging-role
+          Subnets: ${self:custom.${self:provider.stage}.subnets}
+          InstanceRole: arn:aws:iam::781667190002:instance-profile/ecsInstanceRole
+          InstanceTypes:
+            - optimal
+          AllocationStrategy: BEST_FIT_PROGRESSIVE
+          Tags: {"Name": "Batch Instance - #{AWS::StackName}"}
+        State: ENABLED
+      stages:
+        - Staging
+        - Production
+    JobQueue:
+      Type: AWS::Batch::JobQueue
+      Properties:
+        ComputeEnvironmentOrder:
+          - Order: 1
+            ComputeEnvironment: !Ref ComputeEnvironment
+        State: ENABLED
+        Priority: 1
+        JobQueueName: ${self:provider.stage}${self:service}
+      stages:
+        - Staging
+        - Production
+    JobDefinition:
+      Type: "AWS::Batch::JobDefinition"
+      Properties:
+        Type: Container
+        PlatformCapabilities: [ "EC2" ]
+        Timeout:
+          AttemptDurationSeconds: {{ batch_attempt_duration_seconds }}
+        ContainerProperties:
+          Command:
+            - python
+            - main.py
+            - {{ batch_command }}
+            - Ref::date
+          Memory: {{ job_def_memory }}
+          Vcpus: {{ job_def_vcpus }}
+          Image: ${self:custom.${self:provider.stage}.ecr_image}
+          ExecutionRoleArn: ${self:custom.${self:provider.stage}.batch_exec_arn}
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref CloudWatchLogGroup
+              awslogs-stream-prefix: batch
+          Environment:
+            - Name: AWS_DEFAULT_REGION
+              Value: ${self:custom.${self:provider.stage}.container_env.AWS_DEFAULT_REGION}
+            - Name: BUCKET
+              Value: ${self:custom.${self:provider.stage}.container_env.BUCKET}
+            - Name: GCP_PROJECT_ID
+              Value: ${self:custom.${self:provider.stage}.container_env.GCP_PROJECT_ID}
+            - Name: DATASET_NAME
+              Value: ${self:custom.${self:provider.stage}.container_env.DATASET_NAME}
+            - Name: COMMERCE_FLOW_DATASET_NAME
+              Value: ${self:custom.${self:provider.stage}.container_env.COMMERCE_FLOW_DATASET_NAME}
+            - Name: GCS_BUCKET
+              Value: ${self:custom.${self:provider.stage}.container_env.GCS_BUCKET}
+            - Name: SSM_GCP_KEY_PARAMETER_NAME
+              Value: ${self:custom.${self:provider.stage}.container_env.SSM_GCP_KEY_PARAMETER_NAME}
+            - Name: TZ
+              Value: ${self:custom.${self:provider.stage}.container_env.TZ}
+            - Name: DASK_BATCH_SIZE
+              Value: ${self:custom.${self:provider.stage}.container_env.DASK_BATCH_SIZE}
+        JobDefinitionName: ${self:provider.stage}${self:service}
+        RetryStrategy:
+          Attempts: 1
+    CloudWatchLogGroup:
+      Type: AWS::Logs::LogGroup
+      Properties:
+        LogGroupName: ${self:provider.stage}${self:service}
+        RetentionInDays: ${self:custom.${self:provider.stage}.log_retention_in_days}
+    CloudWatchLogGroupSubscriptionFilter:
+      Type: AWS::Logs::SubscriptionFilter
+      Properties:
+        DestinationArn: arn:aws:firehose:ap-northeast-1:781667190002:deliverystream/DatadogCWLogsforwarder
+        FilterPattern: ""
+        LogGroupName: !Ref CloudWatchLogGroup
+        RoleArn: arn:aws:iam::781667190002:role/CWLtoKinesisRole
+      stages:
+        - Staging
+        - Production

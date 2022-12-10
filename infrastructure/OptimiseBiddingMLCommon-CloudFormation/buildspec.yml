@@ -1,0 +1,19 @@
+version: 0.2
+
+env:
+  shell: bash
+  variables:
+    DOCKER_BUILDKIT: "1"
+  parameter-store:
+    AWS_SECRET_ACCESS_KEY: /Seemple/Zappa_Deployer_Secret_Key
+    AWS_ACCESS_KEY_ID: /Seemple/Zappa_Deployer_Access_Key
+
+phases:
+  install:
+    runtime-versions:
+      python: latest
+
+  build:
+    commands:
+      - cd infrastructure/cloudformation
+      - bash deploy.sh $TARGET_ENV auto-deploy -y

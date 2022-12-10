@@ -1,0 +1,38 @@
+version: '3'
+services:
+  batch:
+    platform: linux/x86_64
+    build:
+      context: ../
+      dockerfile: cpc_prediction/Dockerfile
+    working_dir: /usr/src/app
+    environment:
+      - PYTHONPATH=/usr/src/common
+      - MINIO_URL=http://minio:9000
+      - MINIO_ROOT_USER=admin
+      - MINIO_ROOT_PASSWORD=password
+    volumes:
+      - ./:/usr/src/app
+      - ./../common_module:/usr/src/common/common_module
+      - ./../sophia-ai/spai:/usr/src/common/spai
+    env_file:
+      - ./.env
+    tty: true
+    entrypoint: "sh"
+  minio:
+    build:
+      context: ../minio
+    ports:
+      - 9090:9000
+      - 9091:9001
+    volumes:
+      - ../minio/data:/data
+      - ../minio/config:/root/.minio
+      - ../minio/scripts:/scripts
+    environment:
+      - MINIO_ROOT_USER=admin
+      - MINIO_ROOT_PASSWORD=password
+      - MINIO_WEB_PORT=9001
+      - MINIO_DATA_DIR=/data
+    entrypoint: ""
+    command: bash /scripts/start_minio.sh
