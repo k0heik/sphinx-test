@@ -1,7 +1,0 @@
-common\_module.slack\_utils module
-==================================
-
-.. automodule:: common_module.slack_utils
-   :members:
-   :undoc-members:
-   :show-inheritance:

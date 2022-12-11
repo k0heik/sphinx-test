@@ -1,7 +1,0 @@
-common\_module.exception\_util module
-=====================================
-
-.. automodule:: common_module.exception_util
-   :members:
-   :undoc-members:
-   :show-inheritance:
